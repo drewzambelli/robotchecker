@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Checker</title>
+</head>
+<body>
+    <h1>Check for robots.txt</h1>
+    <form method="post">
+        <label for="url">Enter website URL:</label>
+        <input type="text" id="url" name="url" required>
+        <button type="submit">Check</button>
+    </form>
+    {% if result %}
+        <h2>Results for {{ url }}:</h2>
+        <pre>{{ result }}</pre>
+        <!-- Export Button -->
+        <form method="POST" action="/export" style="margin-top: 20px;">
+            <input type="hidden" name="url" value="{{ url }}">
+            <input type="hidden" name="result" value="{{ result }}">
+            <button type="submit">Export</button>
+        </form>
+    {% endif %}
+</body>
+</html>
