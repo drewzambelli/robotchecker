@@ -10,9 +10,10 @@ async function checkRobots() {
     
     try {
         const parsedUrl = new URL(url);
-        const robotsUrl = `${parsedUrl.origin}/robots.txt`;
+        const robotsUrl = `https://corsproxy.io/?${encodeURIComponent(parsedUrl.origin + "/robots.txt")}`;
 
-        const response = await fetch(robotsUrl);
+        const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(robotsUrl)}`);
+
         if (!response.ok) {
             document.getElementById("result").value = `No robots.txt found at ${robotsUrl}.`;
             return;
