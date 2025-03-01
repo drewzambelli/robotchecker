@@ -76,18 +76,58 @@ def home():
         return render_template('index.html', result=result, url=url)
     return render_template('index.html', result=None)
 
+# @app.route('/export', methods=['POST'])
+# def export():
+#     url = request.form['url']
+#     result = request.form['result']
+    
+#     # Create an in-memory text stream
+#     output = io.StringIO()
+#     writer = csv.writer(output)
+
+#     # Write CSV headers and data
+#     writer.writerow(['Website URL', 'Robots.txt Content'])
+#     writer.writerow([url, result])
+
+#     # Get the CSV content
+#     output.seek(0)
+#     response = make_response(output.getvalue())
+
+#     # Set headers to trigger file download
+#     response.headers['Content-Type'] = 'text/csv'
+#     response.headers['Content-Disposition'] = 'attachment; filename=robots.txt_export.csv'
+
+#     return response
 @app.route('/export', methods=['POST'])
 def export():
     url = request.form['url']
     result = request.form['result']
     
+    # Parse the result to extract user agent data
+    user_agents = parse_robots_txt(result)
+    
     # Create an in-memory text stream
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Write CSV headers and data
-    writer.writerow(['Website URL', 'Robots.txt Content'])
-    writer.writerow([url, result])
+    # Write CSV headers: one column for the URL and separate columns for each user agent
+    headers = ['Website URL']
+    
+    # Add user agent columns
+    for agent in user_agents.keys():
+        headers.append(f"User-agent: {agent} Disallowed")
+        headers.append(f"User-agent: {agent} Allowed")
+    
+    writer.writerow(headers)
+    
+    # Write CSV rows: URL followed by the Disallowed and Allowed paths for each user agent
+    row = [url]
+    
+    for agent, rules in user_agents.items():
+        row.append(', '.join(rules['Disallow']) if rules['Disallow'] else 'None')
+        row.append(', '.join(rules['Allow']) if rules['Allow'] else 'None')
+    
+    writer.writerow(row)
 
     # Get the CSV content
     output.seek(0)
