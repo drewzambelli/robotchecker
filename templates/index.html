@@ -13,14 +13,14 @@
         <button type="submit">Check</button>
     </form>
     {% if result %}
-        <h2>Results for {{ url }}:</h2>
-        <pre>{{ result }}</pre>
-        <!-- Export Button -->
-        <form method="POST" action="/export" style="margin-top: 20px;">
-            <input type="hidden" name="url" value="{{ url }}">
-            <input type="hidden" name="result" value="{{ result }}">
-            <button type="submit">Export</button>
-        </form>
+    <h2>Results for {{ url }}:</h2>
+    <pre>{{ result }}</pre>
+    <!-- Export Button -->
+    <form method="POST" action="/export" style="margin-top: 20px;">
+        <input type="hidden" name="url" value="{{ url }}">
+        <input type="hidden" name="result" value="{{ result }}">
+        <button type="submit">Export</button>
+    </form>
     {% endif %}
 </body>
 </html>
