@@ -3,6 +3,7 @@ import requests
 from urllib.parse import urlparse
 import csv
 import io
+import re
 
 app = Flask(__name__)
 
@@ -42,18 +43,57 @@ def parse_robots_txt(robots_txt):
     
     return user_agents
 
+def validate_url(url):
+    """
+    Validates the URL format and structure.
+    Returns a tuple of (is_valid, error_message)
+    """
+    # Check for double dots or other invalid patterns
+    if '..' in url or ' ' in url:
+        return False, "Invalid URL format: URL contains consecutive dots or spaces."
+    
+    # Basic regex pattern for domain validation
+    domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+    
+    # Remove http:// or https:// for domain validation
+    domain = url
+    if domain.startswith('http://'):
+        domain = domain[7:]
+    elif domain.startswith('https://'):
+        domain = domain[8:]
+    
+    # Remove path component for domain validation
+    domain = domain.split('/')[0]
+    
+    if not re.match(domain_pattern, domain):
+        return False, f"Invalid domain format: '{domain}'"
+    
+    return True, ""
+
 def check_robot_txt(url):
+    """
+    Check for robots.txt at the given URL.
+    Includes error handling for various failure cases.
+    """
+    # Validate URL format first
+    is_valid, error_message = validate_url(url)
+    if not is_valid:
+        return error_message
+    
     # If the URL does not start with http:// or https://, prepend http://
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "http://" + url
     
-    parsed_url = urlparse(url)
-    
-    if not parsed_url.netloc:
-        return "Invalid URL"
-    robots_url = parsed_url.scheme + "://" + parsed_url.netloc + "/robots.txt"
     try:
-        response = requests.get(robots_url)
+        parsed_url = urlparse(url)
+        
+        if not parsed_url.netloc:
+            return "Invalid URL: Missing domain"
+            
+        robots_url = parsed_url.scheme + "://" + parsed_url.netloc + "/robots.txt"
+        
+        response = requests.get(robots_url, timeout=5)  # Added timeout
+        
         if response.status_code == 200:
             # Parse robots.txt and return formatted output
             user_agents = parse_robots_txt(response.text)
@@ -64,70 +104,42 @@ def check_robot_txt(url):
                 formatted_result += f"Allowed paths: {', '.join(rules['Allow']) if rules['Allow'] else 'None'}\n\n"
             return formatted_result
         else:
-            return f"No robots.txt found at {robots_url}."
+            return f"No robots.txt found at {robots_url}. Status code: {response.status_code}"
+    
+    except requests.exceptions.ConnectionError:
+        return f"Connection error: Could not connect to {url}. Please check if the website exists and is accessible."
+    except requests.exceptions.Timeout:
+        return f"Timeout error: The request to {url} timed out. The site might be slow or unavailable."
+    except requests.exceptions.TooManyRedirects:
+        return f"Redirect error: Too many redirects for {url}."
     except requests.exceptions.RequestException as e:
-        return f"Error checking robots.txt: {e}"
+        return f"Error checking robots.txt: {str(e)}"
+    except Exception as e:
+        return f"Unexpected error: {str(e)}"
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
-        url = request.form['url']
+        url = request.form['url'].strip()  # Strip whitespace
+        if not url:
+            return render_template('index.html', result="Please enter a valid URL")
+        
         result = check_robot_txt(url)
         return render_template('index.html', result=result, url=url)
     return render_template('index.html', result=None)
 
-# @app.route('/export', methods=['POST'])
-# def export():
-#     url = request.form['url']
-#     result = request.form['result']
-    
-#     # Create an in-memory text stream
-#     output = io.StringIO()
-#     writer = csv.writer(output)
-
-#     # Write CSV headers and data
-#     writer.writerow(['Website URL', 'Robots.txt Content'])
-#     writer.writerow([url, result])
-
-#     # Get the CSV content
-#     output.seek(0)
-#     response = make_response(output.getvalue())
-
-#     # Set headers to trigger file download
-#     response.headers['Content-Type'] = 'text/csv'
-#     response.headers['Content-Disposition'] = 'attachment; filename=robots.txt_export.csv'
-
-#     return response
 @app.route('/export', methods=['POST'])
 def export():
     url = request.form['url']
     result = request.form['result']
     
-    # Parse the result to extract user agent data
-    user_agents = parse_robots_txt(result)
-    
     # Create an in-memory text stream
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Write CSV headers: one column for the URL and separate columns for each user agent
-    headers = ['Website URL']
-    
-    # Add user agent columns
-    for agent in user_agents.keys():
-        headers.append(f"User-agent: {agent} Disallowed")
-        headers.append(f"User-agent: {agent} Allowed")
-    
-    writer.writerow(headers)
-    
-    # Write CSV rows: URL followed by the Disallowed and Allowed paths for each user agent
-    row = [url]
-    
-    for agent, rules in user_agents.items():
-        row.append(', '.join(rules['Disallow']) if rules['Disallow'] else 'None')
-        row.append(', '.join(rules['Allow']) if rules['Allow'] else 'None')
-    
-    writer.writerow(row)
+    # Write CSV headers and data
+    writer.writerow(['Website URL', 'Robots.txt Content'])
+    writer.writerow([url, result])
 
     # Get the CSV content
     output.seek(0)
@@ -139,6 +151,132 @@ def export():
 
     return response
 
-
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+
+
+# from flask import Flask, render_template, request, make_response
+# import requests
+# from urllib.parse import urlparse
+# import csv
+# import io
+
+# app = Flask(__name__)
+
+# def parse_robots_txt(robots_txt):
+#     """
+#     Parses the robots.txt file content into a readable format.
+#     """
+#     user_agents = {}
+#     current_user_agent = None
+    
+#     # Split the robots.txt content into lines
+#     lines = robots_txt.splitlines()
+    
+#     for line in lines:
+#         line = line.strip()
+        
+#         # Skip empty lines or comments
+#         if not line or line.startswith('#'):
+#             continue
+        
+#         # Detect the user-agent line
+#         if line.lower().startswith('user-agent'):
+#             current_user_agent = line.split(':')[1].strip()
+#             user_agents[current_user_agent] = {"Disallow": [], "Allow": []}
+        
+#         # Handle disallow rules
+#         elif line.lower().startswith('disallow'):
+#             if current_user_agent:
+#                 path = line.split(':')[1].strip()
+#                 user_agents[current_user_agent]["Disallow"].append(path)
+        
+#         # Handle allow rules
+#         elif line.lower().startswith('allow'):
+#             if current_user_agent:
+#                 path = line.split(':')[1].strip()
+#                 user_agents[current_user_agent]["Allow"].append(path)
+    
+#     return user_agents
+
+# def check_robot_txt(url):
+#     # If the URL does not start with http:// or https://, prepend http://
+#     if not url.startswith("http://") and not url.startswith("https://"):
+#         url = "http://" + url
+    
+#     parsed_url = urlparse(url)
+    
+#     if not parsed_url.netloc:
+#         return "Invalid URL"
+#     robots_url = parsed_url.scheme + "://" + parsed_url.netloc + "/robots.txt"
+#     try:
+#         response = requests.get(robots_url)
+#         if response.status_code == 200:
+#             # Parse robots.txt and return formatted output
+#             user_agents = parse_robots_txt(response.text)
+#             formatted_result = ""
+#             for agent, rules in user_agents.items():
+#                 formatted_result += f"User-agent: {agent}\n"
+#                 formatted_result += f"Disallowed paths: {', '.join(rules['Disallow']) if rules['Disallow'] else 'None'}\n"
+#                 formatted_result += f"Allowed paths: {', '.join(rules['Allow']) if rules['Allow'] else 'None'}\n\n"
+#             return formatted_result
+#         else:
+#             return f"No robots.txt found at {robots_url}."
+#     except requests.exceptions.RequestException as e:
+#         return f"Error checking robots.txt: {e}"
+
+# @app.route('/', methods=['GET', 'POST'])
+# def home():
+#     if request.method == 'POST':
+#         url = request.form['url']
+#         result = check_robot_txt(url)
+#         return render_template('index.html', result=result, url=url)
+#     return render_template('index.html', result=None)
+
+# #     return response
+# @app.route('/export', methods=['POST'])
+# def export():
+#     url = request.form['url']
+#     result = request.form['result']
+    
+#     # Parse the result to extract user agent data
+#     user_agents = parse_robots_txt(result)
+    
+#     # Create an in-memory text stream
+#     output = io.StringIO()
+#     writer = csv.writer(output)
+
+#     # Write CSV headers: one column for the URL and separate columns for each user agent
+#     headers = ['Website URL']
+    
+#     # Add user agent columns
+#     for agent in user_agents.keys():
+#         headers.append(f"User-agent: {agent} Disallowed")
+#         headers.append(f"User-agent: {agent} Allowed")
+    
+#     writer.writerow(headers)
+    
+#     # Write CSV rows: URL followed by the Disallowed and Allowed paths for each user agent
+#     row = [url]
+    
+#     for agent, rules in user_agents.items():
+#         row.append(', '.join(rules['Disallow']) if rules['Disallow'] else 'None')
+#         row.append(', '.join(rules['Allow']) if rules['Allow'] else 'None')
+    
+#     writer.writerow(row)
+
+#     # Get the CSV content
+#     output.seek(0)
+#     response = make_response(output.getvalue())
+
+#     # Set headers to trigger file download
+#     response.headers['Content-Type'] = 'text/csv'
+#     response.headers['Content-Disposition'] = 'attachment; filename=robots.txt_export.csv'
+
+#     return response
+
+
+# if __name__ == "__main__":
+#     app.run(debug=True)

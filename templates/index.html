@@ -3,25 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot.txt Checker</title>
+    <title>Can I crawl?</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <h1>Check for Robot Rules</h1>
-    <form method="post">
-        <label for="url">Enter website URL (eg - amazon.com):</label>
-        <input type="text" id="url" name="url" required>
-        <button type="submit">Check</button>
-    </form>
-    {% if result %}
-    <h2>Results of Robots.txt search for {{ url }}:</h2>
-    <pre>{{ result }}</pre>
-    <!-- Export Button -->
-    <form method="POST" action="/export" class="export-form">
-        <input type="hidden" name="url" value="{{ url }}">
-        <input type="hidden" name="result" value="{{ result }}">
-        <button type="submit">Export</button>
-    </form>
-    {% endif %}
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-robot"></i> Robots.txt Checker</h1>
+            <p class="subtitle">Check website crawling rules easily</p>
+        </header>
+        
+        <div class="card">
+            <form method="post" class="check-form">
+                <div class="input-group">
+                    <label for="url">Enter website URL:</label>
+                    <div class="url-input">
+                        <input type="text" id="url" name="url" placeholder="amazon.com" required>
+                        <button type="submit" class="primary-btn"><i class="fas fa-search"></i> Check</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if result %}
+        <div class="results-container">
+            <div class="results-header">
+                <h2>Results for <span class="highlight">{{ url }}</span></h2>
+                <form method="POST" action="/export" class="export-form">
+                    <input type="hidden" name="url" value="{{ url }}">
+                    <input type="hidden" name="result" value="{{ result }}">
+                    <button type="submit" class="export-btn"><i class="fas fa-file-export"></i> Export CSV</button>
+                </form>
+            </div>
+            <div class="results-content">
+                <pre>{{ result }}</pre>
+            </div>
+        </div>
+        {% endif %}
+        
+        <footer>
+            <p>Complement to my scraping projects</p>
+        </footer>
+    </div>
 </body>
 </html>
